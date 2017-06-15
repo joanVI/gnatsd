@@ -46,7 +46,7 @@ type Sublist struct {
 	inserts   uint64
 	removes   uint64
 	cache     map[string]*SublistResult
-	root      *level
+	roots     []*level
 	count     uint32
 }
 
@@ -77,7 +77,7 @@ func newLevel() *level {
 
 // New will create a default sublist
 func NewSublist() *Sublist {
-	return &Sublist{root: newLevel(), cache: make(map[string]*SublistResult)}
+	return &Sublist{roots:make([]*Level,32), cache: make(map[string]*SublistResult)}
 }
 
 // Insert adds a subscription into the sublist
@@ -98,7 +98,11 @@ func (s *Sublist) Insert(sub *subscription) error {
 	s.Lock()
 
 	sfwc := false
-	l := s.root
+	l := s.roots[len(tokens)-1]
+	if l == nil {
+		l = newLevel()
+		s.roots[len(tokens)-1]=l 
+	}
 	var n *node
 
 	for _, t := range tokens {
@@ -225,7 +229,7 @@ func (s *Sublist) Match(subject string) *SublistResult {
 	result := &SublistResult{}
 
 	s.Lock()
-	matchLevel(s.root, tokens, result)
+	matchLevel(s.roots[len(tokens)-1], tokens, result)
 
 	// Add to our cache
 	s.cache[subject] = result
@@ -326,7 +330,10 @@ func (s *Sublist) Remove(sub *subscription) error {
 	defer s.Unlock()
 
 	sfwc := false
-	l := s.root
+	l := s.roots[len(tokens)-1]
+	if l== nil {
+		return nil 
+	}
 	var n *node
 
 	// Track levels for pruning
